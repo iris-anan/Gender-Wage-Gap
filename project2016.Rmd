@@ -1,0 +1,550 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+```
+
+---
+title: "Final Class Project: Analyzing the Gender Wage Gap"
+author: "Ananthset, Iris"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+project <- read.csv("C:/Users/Iris/Downloads/project2016.csv")
+library(dplyr)
+library(colorspace)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+library(caTools)
+library(splines)
+library(stargazer)
+female <- subset(project, female==1)
+male <- subset(project, female==0)
+```
+Women earn less than men. This gender wage gap has been prevalent throughout history, and it is still an issue today. However, is this due to differences in their characteristics, such as education, age, and productivity? Or, are the employers actually paying employees differently because of their gender? This paper will provide a better understanding of the gender wage gap. The data set contains 23,144 observations - 15,058 males and 8,086 females. Below is a table that summarizes the data set.
+
+## Table 1
+```{r tab1, echo=FALSE}
+table <- matrix(c(mean(project$y), mean(project$age), mean(project$educ), mean(project$va),
+                  mean(female$y), mean(female$age), mean(female$educ), mean(female$va),
+                  mean(male$y), mean(male$age), mean(male$educ), mean(male$va), 
+                  t.test(female$y, male$y)$statistic, t.test(female$age, male$age)$statistic, t.test(female$educ, male$educ)$statistic, t.test(female$va, male$va)$statistic), 
+                nrow=4, ncol=4)
+colnames(table) <- c("All", "Female", "Male", "T-stat")
+rownames(table) <- c("Hourly Wage", "Age", "Education", "Productivity")
+print(table)
+```
+
+As shown from this table, men do earn more than women on average. The average change in real hourly wages for both men and women is $1.57. The average change in real hourly wages for men ($1.64) is higher than the overall average change while the average for women ($1.44) is lower than it. The difference between the change in real hourly wages for men and women is significant (t-stat of -29.85), meaning that the hypothesis of men and women earn the same amount can be rejected.
+
+However, there are indeed differences in the characteristics of men and women, specifically education, age, and productivity. The employees in the data set, on average, are approximately 36 years old. The average age for male employees and female employees is also about 36 years old. Age is associated with experience; older employees tend to have more experience. Therefore, the gender wage gap may not be due to difference in experience between men and women. On the other hand, the differences in the other characteristics between men and women are significant, so they might be the reason for the gender wage gap. The employees in the data set have a mean of 8.72 years of education. Women, on average, have higher education (9.15 years) than both the overall average and average education of men (8.49 years). Typically, there is a positive correlation between education and wages. If women, on average, have higher education than men, why are men paid more? The answer to this is that men tend to work at more productive firms than women. The data measures productivity using the change in output per worker at the firm The firms men work in have higher change in output (3.14) than both the overall average firms (3.07) and the firms of women (2.94).    
+
+## Figure 1a: Histogram of Log Hourly Wages
+```{r fig1a, echo=FALSE}
+ggplot(data=female, aes(x=y), alpha=0.2)+
+  geom_histogram(colour = "pink", fill = "pink", binwidth = .05) +
+  geom_histogram(data = male, aes(x=y), fill = "blue", alpha = 0.2, binwidth = .05) +
+  xlab("Log Hourly Wages") + ylab("Frequency") +
+  theme(legend.position = "right")+
+  scale_fill_discrete(name= "Gender", labels = c("Female", "Male"))
+```
+
+
+Figure 1a illustrates the distribution of log hourly wages for both male (blue) and female (pink) employees. For both men and women, the graph is right-skewed. This means that there are more people earning less than the average. The data set has twice as many observations for men than women, hence there is more blue on the graph. Despite this bias, there is a portion of the histogram for women that does not align with the histogram for men (purely pink part). This portion is towards the lower values of the log hourly wages. This means there are a lot more women earning lower hourly wages compared to men. There is also a huge portion of the histogram for men that does not align with the histogram for women (purely blue part). This portion is towards the higher values of log hourly wages. This means that there are many male employees earning higher hourly wages than female employees. 
+
+## Figure 1b: Histogram of Productivity
+```{r fig1b, echo=FALSE}
+ggplot(data=female, aes(x=va), alpha=0.2)+
+  geom_histogram(colour = "pink", fill = "pink", binwidth = .05) +
+  geom_histogram(data = male, aes(x=va), fill = "blue", alpha = 0.2, binwidth = .05) +
+  xlab("Productivity of Current Employer") + ylab("Frequency") +
+  theme(legend.position = "right")+
+  scale_fill_discrete(name= "Sex", labels = c("Female", "Male"))
+```
+
+
+Figure 1b illustrates the distribution of the productivity of the firms men (blue) and women (pink) work in. In contrast to Figure 1a, the graph is normally distributed. This means that people, on average, work at firms that produce the average output. Again, since data set has twice as many observations for men than women, there is more blue on the graph. Despite this bias, there is a portion of the histogram for women that does not align with the histogram for men (purely pink part). Again, this is observed at the lower values of the firm's log of output per worker. This means more women are working at firms that are considered less productive. There is a significant portion of the histogram for men that does not align with the histogram for women (purely blue part). This means that there are a lot more men working at firms considered as more productive. 
+
+To summarize, the following are the main findings from the tables and figures above:
+
+1) The gender wage gap is real. On average, men earn higher wages than women.
+
+2) A possible explanation for the gender wage gap is the difference in the firms men and women tend to work in. Women tend to work at firms that are less productive compared to the firms men work in. 
+
+
+What is the relationship between wage, education, and age? The following is are hypothesized models that show the relationship. They are simple OLS regressions with education and cubic age as the covariates.
+
+
+
+
+
+
+## Table 2: Series of Standard Wage Models
+```{r tab2, echo=FALSE}
+s1 <- lm(y ~ female, project)
+project$age2 <- (project$age)^2
+project$age3 <- (project$age)^3
+s2 <- lm(y ~ educ + age + age2 + age3 + female,project)
+male$age2 <- (male$age)^2
+male$age3 <- (male$age)^3
+female$age2 <- (female$age)^2
+female$age3 <- (female$age)^3
+s3 <- lm(y ~ educ + age + age2 + age3, male)
+s4 <- lm(y ~ educ + age + age2 + age3, female)
+stargazer(s1,s2,s3,s4, dep.var.labels = c("Log Hourly Wages"), type = "text", omit.stat=c("LL","ser","f"))
+```
+
+
+Both covariates have a positive relationship with wages. An additional year in education increases change in wages by 8.3%, holding all other variables constant. For men, the returns to education is less than the returns to education for women. An additional year in age also has a positive effect on wages, holding all the other variables constant.
+    
+In the first two columns, the regression models fit the data for both men and women. The only difference is that the first column (1) only uses the female dummy as the control variable while the second column (2) uses the female dummy as well as the other characteristic variables (education and age). The coefficient of females in (1) is smaller in magnitude than the coefficient for females in (2), |-0.197| > |-0.251|. This is because wages is not only explained by the gender of the worker; there are other explanatory variables such as education level and age which (2) considers. 
+
+In the third column (3), the regression model fits the data for only men while the fourth column (4) fits the data for only women. Both models include are the explanatory variables that were used in (2). The coefficient of education in (3) is smaller than the coefficient of education in (4), 0.081 < 0.086. This means that the returns for each year of education is smaller for men than women. If this is the case, shouldn't women earn more than men on average since women tend to have more education than men? The answer to this question is the difference in returns to age. The overall coefficient of age in (3) is bigger than the overall coefficient of age in (4), 0.108 > 0.063. This means that the older men get, they not only earn more than younger men, but they also earn more than women of the same age. This poses the possibility that the the gender wage gap might be due to differences in work experience of men and women. Men have lower education levels, which means they may start working at an earlier age than women. As a result, they obtain more work experience than women which might be reflected in wages. 
+
+So, how much of the gender wage gap is explained by differences in characteristics between women and men, and how much of the gender wage gap is explained by the differences in returns for the different explanatory variables between women and men? The following Oaxaca style decompostion equation answers this question: 
+
+```{r Oaxaca 1, echo=FALSE}
+tab2 <- matrix(c(mean(male$educ), mean(male$age), mean(male$age2), mean(male$age3),
+                 mean(female$educ), mean(female$age), mean(female$age2), mean(female$age3)), nrow=4, ncol=2)
+tab2 <- as.data.frame(tab2)
+colnames(tab2) <- c("Male", "Female")
+rownames(tab2) <- c("education", "age", "age2","age3")
+tab2$diffA <- tab2$Female-tab2$Male
+tab2$fcoeff <- c(s4$coefficients[2], s4$coefficients[3], s4$coefficients[4], s4$coefficients[5])
+tab2$mcoeff <- c(s3$coefficients[2], s3$coefficients[3], s3$coefficients[4], s3$coefficients[5])
+tab2$dotA <- tab2$diff*tab2$fcoeff
+tab2$dotB <- (tab2$fcoeff-tab2$mcoeff)*tab2$Male
+#s2$coefficients[2]*(mean(female$educ)-mean(male$educ))
+#s2$coefficients[3]*(mean(female$age)-mean(male$age))+s2$coefficients[4]*(mean(female$age2)-mean(male$age2))+s2$coefficients[5]*(mean(female$age3)-mean(male$age3))
+#(s4$coefficients[2]-s3$coefficients[2])*mean(male$educ)
+#(s4$coefficients[3]-s3$coefficients[3])*mean(male$age)+(s4$coefficients[4]-s3$coefficients[4])*mean(male$age2)+(s4$coefficients[5]-s3$coefficients[5])*mean(male$age3)
+#sum(tab2[-1,]$dotA)
+print(tab2)
+```
+
+DotA is a dot product between the vector of differences in characteristics of men and women and the vector of coefficients of the explanatory variables for females is the part of the gender wage gap due solely to the differences in characteristics. DotB is a dot product between the vector of differences in coefficients of the explanatory variables for men and women and the vector of average characteristics of men is the part of the gender wage gap due solely to the differences in returns of the characteristics. The gender wage gap (-0.197) is comprised of DotA, DotB, and the difference between the constant coefficient for females and males. 
+
+The contribution of the difference in characteristics on the gender wage gap is about 0.055 out of the total -0.197. Specifically, the contribution of the difference in just education is 0.054 out of the total -0.197 while the difference in age is -0.00126 out of the total -0.197. The supposed contribution of the difference in returns of the covariates is -0.641, which is greater than the gender wage gap. This is because the difference in returns of the covariates "over-explains" the wage gap by a lot. However, the portion of the gender wage gap explained by differences in the returns to education is 0.0375 out of the -0.197 while that part explained by the differences in the return to age is -0.679 out of the -0.197. 
+
+Since women tend to have a higher education level than men and their returns are greater, the contribution of the difference in education and the difference in the returns to education between men and women are opposite to the sign of the wage gap. This means that these differences should decrease the wage gap rather than contribute to it. Therefore, although education is related to wages, it does not explain the wage gap. So far, only difference in age and the difference in the returns of age explains the wage gap.  
+
+Since difference in age profile is such an important aspect of the difference in men and women and our hypothesis is that age is one of the contributing factors of the wage gap, it must be further analyzed.
+
+## Figure 2: Relationship Between Wages and Age Between Men and Women 
+```{r fig2, echo=FALSE}
+male$predict <- predict(s3)
+female$predict <- predict(s4)
+fgraph <- ggplot(female, aes(x=age, y=y)) +
+  geom_point(alpha = .3, position = "identity") +
+  geom_line(aes(x=age, y=predict, color= "Cubic")) +
+  scale_colour_manual(name="Legend",values=c(Cubic="Red")) +
+  facet_grid( ~ educ) +
+  ggtitle("Log Hourly Wage by Education Group for Female") +
+  labs(x="Age", y="Log Hourly Wage")
+
+mgraph <- ggplot(male, aes(x=age, y=y)) +
+  geom_point(alpha = .3, position = "identity") +
+  geom_line(aes(x=age, y=predict, color= "Cubic")) +
+  scale_colour_manual(name="Legend",values=c(Cubic="Red")) +
+  facet_grid( ~ educ) +
+  ggtitle("Log Hourly Wage by Education Group for Male") +
+  labs(x="Age", y="Log Hourly Wage")
+mgraph
+fgraph
+```
+Figure 2 shows the relationship between wages and age for men and women, separated by their education level. There is a general trend that those with higher education level earn higher wages. For those with 4 years of education, there seems to be no relationship between wages and age. The hypothesized model (simple OLS with education and cubic age, column 3 of Table 2) does a poor job in estimating the relationship. The model states that age has an increasing marginal return on wages, but the marginal returns diminishes as people get older. As education level increases, the better fit the hypothesized model becomes. 
+
+The hypothesized model is not the ideal model to use because a cubic function is not always the best way to describe the age profiles for men and women. A better model to use is one that includes a cubic polynomial with a cubic spline function. The problem with this model is finding the best number of knots to use.   
+
+## Figure 3: Finding the Best Number of Knots for Cubic Spline Model
+```{r fig3, echo=FALSE}
+male12 <- subset(male, educ== 12)
+female12 <- subset(female, educ== 12)
+set.seed(42)
+s=sample(1:nrow(male12),nrow(male12)/2, replace=FALSE)
+mtrain <- male12[s, ]
+mtest = male12[-s,]
+s=sample(1:nrow(female12),nrow(female12)/2, replace=FALSE)
+ftrain <- female12[s, ]
+ftest = female12[-s,]
+###Cubic Splines
+library(splines)
+k <- seq(3,10,1)
+r1<-data.frame()
+deg <- k+3
+a <- 0
+for (i in deg){
+  a <- a+1
+  r1[a,1] = i-3
+  fit = lm(y~bs(age, df=i), data=mtrain)
+  pred = predict(fit, newdata = mtest)
+  MSE <- mean((mtest$y-pred)^2)
+  r1[a,2] = MSE
+}
+colnames(r1) <- c("K", "MSE")
+
+r2<-data.frame()
+a <- 0
+for (i in deg){
+  a <- a+1
+  r2[a,1] = i-3
+  fit = lm(y~bs(age, df=i), data=ftrain)
+  pred = predict(fit, newdata = ftest)
+  MSE <- mean((ftest$y-pred)^2)
+  r2[a,2] = MSE
+}
+colnames(r2) <- c("K", "MSE")
+
+##Figure 3 
+mplot <- plot(x=r1$K, y=r1$MSE, main = "Male", xlab="Number of Knots", ylab="Mean Squared Errors")
+fplot <- plot(x=r2$K, y=r2$MSE, main = "Female", xlab="Number of Knots", ylab="Mean Squared Errors")
+#plot_grid(mplot, fplot, ncol=1, nrow=2)
+```
+Figure 3 shows the best number of knots to use for men and women with exactly 12 years of education. For men, the model should include 7 knots since it is the one that minimizes the mean squared errors. For women, a model with 3 knots minimizes the mean squared errors. 
+
+```{r compare MSE, echo=FALSE}
+mcubic <- lm(y~age + age2 + age3, data = male12)
+male12$cubic <- predict(mcubic)
+cmsem <- mean((male12$cubic - male12$y)^2)
+
+mbestk <- subset(r1, MSE==min(r1$MSE))$K
+mdeg <- mbestk + 3
+mspline <- lm(y~bs(age, df=mdeg), data=male12)
+male12$spline <- predict(mspline)
+smsem <- mean((male12$spline-male12$y)^2)
+#smsem < cmsem
+
+fcubic <- lm(y~age + age2 + age3, data = female12)
+female12$cubic <- predict(fcubic)
+cmsef <- mean((female12$cubic - female12$y)^2)
+
+fbestk <- subset(r2, MSE==min(r2$MSE))$K
+fdeg <- fbestk + 3
+fspline <- lm(y~bs(age, df=fdeg), data=female12)
+female12$spline <- predict(fspline)
+smsef <- mean((female12$spline-female12$y)^2)
+#smsef < cmsef
+```
+
+The cubic spline has smaller mean squared errors for both men and women; therefore, it is a better model for relating age to wages. Using data for only men, the model with only the cubic function gives a mean squared error of 0.213 while the model with the cubic spline and 7 knots, 0.212. Using data for only women, the model with only the cubic function gives a mean squared error of 0.1383 while the model with the cubic spline and 3 knots, 0.1379. 
+
+## Figure 4: Log Wages vs. Age Plot 
+```{r fig4a, echo=FALSE}
+fig4a <- ggplot(male12, aes(x=age,y=y))+
+  geom_jitter(alpha = .3, position = "identity")+
+  geom_line(aes(x=age,y=cubic,color = "Cubic"))+
+  geom_line(aes(x=age, y=spline, color= "Cubic with Splines"))+
+  scale_colour_manual(name="Legend",values=c("Cubic with Splines"="yellow", "Cubic"="blue")) +
+  ggtitle("Males")+
+  labs(x= "Age", y= "Log Wage")
+fig4a
+```
+As illustrated, the data for men that have an education level of 12 years has many peaks and troughs. The cubic model, unlike the cubic with spline model, is not able to capture them. The 7 knots in the cubic with splines model follows the peaks and troughs of the data, hence it shows the relationship between age and wages better.
+
+## Figure 4b: Log Wages vs. Age Plot for Females
+```{r fig4b, echo=FALSE}
+fig4b <- ggplot(female12, aes(x=age,y=y))+
+  geom_jitter(alpha = .3, position = "identity")+
+  geom_line(aes(x=age,y=cubic,color = "Cubic"))+
+  geom_line(aes(x=age, y=spline, color= "Cubic with Splines"))+
+  scale_colour_manual(name="Legend",values=c("Cubic with Splines"="orange", Cubic="red")) +
+  ggtitle("Females")+
+  labs(x= "Age", y= "Log Wage")
+fig4b
+```
+The data for women with eduation level of 12 years also have peaks and troughs, but it does not have as many as the data for men. Again, the cubic model is unable to capture them. The cubic spline model with 3 knots follows peaks and troughs of data, which is why the cubic spline with 3 knots is a better model.
+    
+Employer productivity is highly related to wages men and women earn. As mentioned earlier, women tend to work at less productive firms. Therefore, how much of the gender wage gap is "explained" by this fact? 
+
+## Table 3: Series of Standard Wage Model (Including Firm Productivity)
+```{r table 3, echo=FALSE}
+M1<- lm(y~female + educ + age + age2 + age3 , data = project)
+M2<- lm(y~female + educ + age + age2 + age3 + va, data = project)
+M3<- lm(y~educ + age + age2 + age3 + va, data = male)
+M4<- lm(y~educ + age + age2 + age3 + va, data = female)
+stargazer(M1, M2, M3, M4, type = "text", omit.stat=c("LL","ser","f"))
+#(M2$coefficients[7]*(mean(female$va)-mean(male$va)))/M2$coefficients[2]
+#M2$coefficients[2]
+```
+
+
+According to Table 3, the effect of employer productivity on the wage gap is -0.45 (product of coefficient of employer productivity and the difference in means for women and men). This means that the difference in employer productivity explains 23% of the gap.
+
+The estimated effect of employer productivity on wages is that a 1% increase in change of output increases the change in wages by 23%. However, in this model, the part of wages not explained by the observed characteristics (female dummy variable, age, and employer productivity) consists of two parts: 
+   
+(1) unobserved factors that makes the worker more productive that may be correlated with the observed characteristics
+   
+(2) pure noise and uncorrelated with the observed characteristics
+   
+Hence, the model suffers from omitted variable bias, meaning the estimated effect of employer productivity is biased. People with high productivity are more likely to work for more productive employers. The more productive worker these firms hire, the higher the productive the firms become. Since the individual productivity is not included in the model, it overestimates the true effect of employer productivity on wages. 
+
+Another interesting observation is that working at a more productive firm has a smaller effect for women (0.198) than men (0.254). Therefore, there is a component of the gender wage gap due to the difference in returns to employer productivity. 
+   
+Extending on the previous Oaxaca style decomposition equation used before to distinguish the part of the gender gap explained by differences in the education and age and the part explained by the differences in the returns of those characteristics, the following equation includes employer productivity.
+
+```{r Oaxaca 2, echo=FALSE}
+oax <- matrix(c(mean(female$educ), mean(female$age), mean(female$age2), mean(female$age3), mean(female$va),
+                mean(male$educ), mean(male$age), mean(male$age2), mean(male$age3), mean(male$va)), 
+              nrow=5, ncol=2)
+oax <- as.data.frame(oax)
+colnames(oax) <- c("Female", "Male")
+rownames(oax) <- c("education", "age", "age2","age3", "va")
+oax$diffA <- oax$Female-oax$Male
+oax$fcoeff <- c(M4$coefficients[2], M4$coefficients[3], M4$coefficients[4], M4$coefficients[5], M4$coefficients[6])
+oax$dotA <- oax$diffA*oax$fcoeff
+oax$fcoeff <- c(M4$coefficients[2], M4$coefficients[3], M4$coefficients[4], M4$coefficients[5], M4$coefficients[6])
+oax$mcoeff <- c(M3$coefficients[2], M3$coefficients[3], M3$coefficients[4], M3$coefficients[5], M3$coefficients[6])
+oax$diffB <- (oax$fcoeff-oax$mcoeff)
+oax$dotB <- oax$diffB*oax$Male
+#sum(oax$dotA)+sum(oax$dotB)+(M4$coefficients[1]-M3$coefficients[1])
+#M2$coefficients[3]*(mean(female$educ)-mean(male$educ))
+#M2$coefficients[4]*(mean(female$age)-mean(male$age))+M2$coefficients[5]*(mean(female$age2)-mean(male$age2))+M2$coefficients[6]*(mean(female$age3)-mean(male$age3))
+#(M4$coefficients[2]-M3$coefficients[2])*mean(male$educ)
+#sum(oax[c(-1,-5),]$dotA)
+print(oax)
+```
+
+The contribution of the difference in characteristics on the gender wage gap decreased to about 0.007 out of the total -0.197. Addtionally, contribution of the difference in just education changed to 0.047 out of the total -0.197 while the difference in age is now -0.00129 out of the total -0.197. The supposed contribution of the difference in returns of the covariates is -0.567, which is still greater than the gender wage gap. This means that the difference in returns of the covariates still "over-explains" the wage gap by a lot. The difference in returns to education is 0.007, which again is opposite of the sign of the wage gap. On the other hand, the part of the gender wage gap explained by differences in returns to employer productivity between men and women is -0.177 out of -0.197. This Oaxaca decomposition also supports the hypothesis that differences in education and gender inequality in returns to education does not contribute to the gender wage gap. Both age and employer productivity, however, are possible factors for the wage gap.
+
+The numbers associated with employer productivity are way too big. They're overestimations because individual productivity is not included in the model and the estimated effect of employer productivity is much bigger than the true effect. To get a better estimation, employer productivity must be renormalized. Renormalizing the employer productivity to reflect this changes the portion of the wage gap explained by the difference in the returns. 
+
+```{r Oaxaca 2, normalized, echo=FALSE}
+minva <- min(project$va)
+noax <- oax
+noax$Male[5] <- noax$Male[5]-minva
+noax$Female[5] <- noax$Female[5]-minva
+male$norm <- male$va-minva
+female$norm <- female$va-minva
+M3<- lm(y~educ + age + age2 + age3 + norm, data = male)
+M4<- lm(y~educ + age + age2 + age3 + norm, data = female)
+noax$fcoeff[5] <- M4$coefficients[6]
+noax$mcoeff[5] <- M3$coefficients[6]
+noax$diffA <- noax$Female-noax$Male
+noax$dotA <- noax$diffA*noax$fcoeff
+noax$diffB <- (noax$fcoeff-noax$mcoeff)
+noax$dotB <- noax$diffB*noax$Male
+#sum(noax$dotA)+sum(noax$dotB)+(M4$coefficients[1]-M3$coefficients[1])
+print(noax)
+```
+
+The part of the gender wage gap explained by differences in returns to employer productivity between men and women decreases to -0.081 out of -0.197, which is a much reasonable number.
+    
+## Table 4: Series of Standard Change in Wage Model (Considering Job Changes)
+```{r table 4, echo=FALSE}
+C1<- lm(dy~ age + age2 + dva, data = project)
+C2<- lm(dy~ age + age2 + female + dva, data = project)
+C3<- lm(dy~ age + age2 + dva, data = female)
+C4<- lm(dy~ age + age2 + dva, data = male)
+stargazer(C1, C2, C3, C4,type = "text", omit.stat=c("LL","ser","f"))
+```
+
+To find the true coefficient of employer productivity, the model must take individual productivity into account. Therefore, you need to fix individual specific characteristics. Using change in employer productivity instead of current employer productivity and change in wages subtracts out the error that is constant for individuals throughout time, which includes individual productivity. The true effect of employer productivty on wages is 0.076. This is much less than the estimated effect stated in Table 3 (0.233). As found in Table 3, Table 5 columns 3 and 4 also show that the returns on working at a productive firm is less for women compared to men. This gap may be due to the fact that men have higher positions in firms or that women work less hours because they also have to juggle being a caregiver.  The gender inequality in this may be one of the contributions to the gender wage gap. 
+
+## Table 5:
+```{r table 5, echo=FALSE}
+proj <- read.csv("C:/Users/Iris/Downloads/project2016.csv")
+quant <- quantile(proj$va_previous)
+proj <-proj %>%
+  mutate(quartile_vap = ifelse(proj$va_previous<=quant[2], "1",
+                               ifelse(proj$va_previous>quant[2] & proj$va_previous<=quant[3], "2",
+                                      ifelse(proj$va_previous>quant[3] & proj$va_previous<=quant[4], "3","4"))))
+tab5 <- as.data.frame(prop.table(table(proj$quartile_vap, proj$female),2))
+tab5 <- spread(tab5, Var2, Freq)
+colnames(tab5) <- c("Quartile", "Male (va_p)", "Female (va_p)")
+#B
+quant <- quantile(proj$va)
+proj <-proj %>%
+  mutate(quartile_va = ifelse(proj$va<=quant[2], "1",
+                               ifelse(proj$va>quant[2] & proj$va<=quant[3], "2",
+                                      ifelse(proj$va>quant[3] & proj$va<=quant[4], "3","4"))))
+tab5a <- as.data.frame(prop.table(table(proj$quartile_va, proj$female),2))
+tab5a <- spread(tab5a, Var2, Freq)
+tab5a <- tab5a[,-1]
+colnames(tab5a) <- c("Male (va)", "Female (va)")
+tab5 <- cbind(tab5, tab5a)
+print(tab5)
+```
+To establish whether or not working at a productive firm causes a change in wages, an event study must be conducted. In Table 5, workers are classified by whether their initial employer (va_p) and current employer (va) are in quartile 1,2,3, or 4. 
+
+For men, there is a trend that illustrates that they move to better, more productive firms. The percentage of men in quartile 1 decreased between the previous period and the current period. The percentage of men in quartile 2,3,4 more or less increased in the current period. 
+
+Women, on the other hand, have an opposite trend. The percentage of women emplyed at firms in quartile 1 increased between the previous period and current period. There are much more women working in firms in quartile 2 during the current period; however, the percentage of women in firms categorized in quartile 3 and 4 plummeted. Women, in general, are transferring to less productive firms.    
+
+## Figure 5
+```{r fig 5, echo=FALSE}
+fem<- subset(proj, female == 1)
+men <- subset(proj, female == 0)
+#Panel A-Males
+panela <- subset(men, quartile_va==1)
+panela<- as.data.frame(panela %>%
+                         group_by(quartile_vap) %>%
+                         summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+m.panela_graph <- ggplot(panela, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel A - Males")+
+  labs(x="Event Time", y="Wage")
+#Panel B-Males
+panelb <- subset(men, quartile_va==2)
+panelb<- as.data.frame(panelb %>%
+                         group_by(quartile_vap) %>%
+                         summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+
+m.panelb_graph <- ggplot(panelb, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel B - Males")+
+  labs(x="Event Time", y="Wage")
+
+#Panel C-Males
+panelc <- subset(men, quartile_va==3)
+panelc<- as.data.frame(panelc %>%
+                         group_by(quartile_vap) %>%
+                         summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+m.panelc_graph <- ggplot(panelc, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel C - Males")+
+  labs(x="Event Time", y="Wage")
+#Panel D-Males
+paneld <- subset(men, quartile_va==4)
+paneld<- as.data.frame(paneld %>%
+                         group_by(quartile_vap) %>%
+                         summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+m.paneld_graph <- ggplot(paneld, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel  D - Males")+
+  labs(x="Event Time", y="Wage")
+plot_grid(m.panela_graph,m.panelb_graph,m.panelc_graph,m.paneld_graph, ncol=2, nrow=2)
+```
+If men are moving to more productive firms and women are moving to less productive firms, how does is this reflected in the average wages? 
+
+Figure 5 comprises of 4 graphs. Panel A plots the means of wages for male workers who started in different quartiles and end up in quartile 1. Panel B plots it for those who started in different quartiles and end up in quartile 2. Panel C does this for those who end up in quartile 3, and Panel D does this for those who end up in quartile 4. 
+
+According to Figure 5, people who move to a firm with the same or higher productivity level receive a raise in their wages. Those who move to a firm with a lower productivity level receive lower wages (males originally in quartile 2,3,4 and end up in quartile 1). If employer productivity has a positive causal effect on wages, this is exactly what is expected. Male workers who start at a firm in quartile 1 and end up at a firm in quartile 4 earns about the same amount as those who start off at a firm in quartile 4 and end up at a firm in quartile 1 because those in the first scenario get a raise when they move firms while those in the second scenario receive less wages when they moved.  
+
+
+## Figure 6
+```{r fig 6, echo=FALSE}
+#Panel A-Females
+f.panela <- subset(fem, quartile_va==1)
+f.panela<- as.data.frame(f.panela %>%
+                           group_by(quartile_vap) %>%
+                           summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+f.panela_graph <- ggplot(f.panela, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel A - Females")+
+  labs(x="Event Time", y="Wage")
+#Panel B-Females
+f.panelb <- subset(fem, quartile_va==2)
+f.panelb<- as.data.frame(f.panelb %>%
+                           group_by(quartile_vap) %>%
+                           summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+f.panelb_graph <- ggplot(f.panelb, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel B - Females")+
+  labs(x="Event Time", y="Wage")
+#Panel C-Females
+f.panelc <- subset(fem, quartile_va==3)
+f.panelc<- as.data.frame(f.panelc %>%
+                           group_by(quartile_vap) %>%
+                           summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+f.panelc_graph <- ggplot(f.panelc, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel C - Females")+
+  labs(x="Event Time", y="Wage")
+#Panel D-Females
+f.paneld <- subset(fem, quartile_va==4)
+f.paneld<- as.data.frame(f.paneld %>%
+                           group_by(quartile_vap) %>%
+                           summarize(yl2 = mean(yl2), yl1 = mean(yl1), y = mean(y), yp1 = mean(yp1)))
+f.paneld_graph <- ggplot(f.paneld, aes(x=c(-2:1)))+
+  geom_point(aes(x=-2, y=yl2, color = quartile_vap))+
+  geom_point(aes(x=-1,y=yl1, color = quartile_vap))+
+  geom_point(aes(x=-0,y=y, color = quartile_vap))+
+  geom_point(aes(x=1,y=yp1, color = quartile_vap))+
+  ggtitle("Panel D - Females")+
+  labs(x="Event Time", y="Wage")
+
+plot_grid(m.panela_graph,m.panelb_graph,m.panelc_graph,m.paneld_graph, ncol=2, nrow=2)
+```
+Figure 6 is comprised of the same graphs as Figure 5 but for women instead.
+
+According to Figure 6, females who move to a firm with the same or higher productivity level also receive a raise in their wages. Those who move to a firm with a lower productivity level receive lower wages. These are the same findings as the previous figure for men. Figure 5 and Figure 6 are basically the same. Women just generally have lower refernce points for wages.
+
+There seems to be a positive relationship between employer productivity and wages. As workers, both male and female, move to firms that are more productive, they receive a raise in their wages. However, this positive trend happens to wages in general. Those who remain at firms with the same production level also experience a raise in wages. When people transfer to firms with a lower level of production, their wages decrease for that period, but they experience a raise in wages again the following period. This means that there are other things causing an increase in wages other than moving to a firm with higher productivity level.   
+
+
+
+
+
+
+
+
+
+```{r table 6, echo=FALSE}
+trueBva <- C1$coefficients[4]
+proj$newy <- proj$y - trueBva*proj$va
+nmale <- subset(proj, female==0)
+nfemale <- subset(proj,female==1)
+nmale$age2 <- (nmale$age)^2
+nmale$age3 <- (nmale$age)^3
+nfemale$age2 <- (nfemale$age)^2
+nfemale$age3 <- (nfemale$age)^3
+nM3 <- lm(newy~educ+age+age2+age3, data=nmale)
+nM4 <- lm(newy~educ+age+age2+age3, data=nfemale)
+oaxN <- matrix(c(mean(female$educ), mean(female$age), mean(female$age2), mean(female$age3), mean(female$va),
+                mean(male$educ), mean(male$age), mean(male$age2), mean(male$age3), mean(male$va)), 
+              nrow = 5 , ncol=2)
+oaxN <- as.data.frame(oaxN)
+colnames(oaxN) <- c("Female", "Male")
+oaxN$diffA <- oaxN$Female-oaxN$Male
+oaxN$fcoeff <- c(nM4$coefficients[2], nM4$coefficients[3], nM4$coefficients[4], nM4$coefficients[5], C3$coefficients[4])
+oaxN$dotA <- oaxN$diffA*oaxN$fcoeff
+oaxN$mcoeff <- c(nM3$coefficients[2], nM3$coefficients[3], nM3$coefficients[4], nM3$coefficients[5], C4$coefficients[4])
+oaxN$diffB <- (oaxN$fcoeff-oaxN$mcoeff)
+oaxN$dotB <- oaxN$diffB*oaxN$Male
+#sum(oaxN$dotA)+sum(oaxN$dotB)+(nM4$coefficients[1]-nM3$coefficients[1])
+#nM4$coefficient[2]*(mean(nfemale$educ)-mean(nmale$educ))
+#nM4$coefficient[3]*(mean(nfemale$age)-mean(nmale$age))+nM4$coefficient[4]*(mean(nfemale$age2)-mean(nmale$age2))+nM4$coefficient[5]*(mean(nfemale$age3)-mean(nmale$age3))
+#C4$coefficients[4]*(mean(nfemale$va)-mean(nmale$va))
+#(nM4$coefficients[3]-nM3$coefficients[3])*mean(nmale$age)+(nM4$coefficients[4]-nM3$coefficients[4])*mean(nmale$age2)+ (nM4$coefficients[5]-nM3$coefficients[5])*mean(nmale$age3)
+#(C3$coefficients[4]-C4$coefficients[4])*mean(nmale$va)
+print(oaxN)
+```
+
+Building off the idea that the true coefficient for employer productivity is in the regressions used in Table 4, the true coefficients for the other covariates can be found by subtracting the part of the wages attributed to employer productivity from the wages. These new true coefficients changes the Oaxaca decompositon of the the wage gap once again. 
+
+The contribution of the differences in characteristics on the wage gap is now 0.039 out of the -0.197. This means that women in general have higher levels of the characteristics. Since these characteristics would typically be attributed to higher wages, the differences in the characteristics cannot be the reason for the wage gap. However, the part of the wage gap due to the differences in the mean value of employer productivity is -0.0162 out of the -0.197. Therefore, the fact that men tend to work are more productive firms than women explains 8% of the wage gap. The contribution of the differences in the returns of the characteristics, on the other hand, is -0.632 out of the -0.197. The number is greater than the wage gap, meaning that the differences in returns still over explains the wage gap but still contributes to it. The contribution of the differences in returns of working at productive firms on the wage gap is -0.066, meaning that the inequality in returns explains 33.5% of the wage gap. However, the majority of the wage gap is explained by the difference in returns of additional year of age for men and women (-0.585/0.197). 
+
+In conclusion, the wage gap can be explained by:
+(1) differences in types of firms men and women work in (8% of wage gap)
+(2) differences in age between men and women (0.6% of wage gap)
+(3) differences in returns to working at productive firms (33.5% of wage gap)
+(4) differences in the returns to age (270% of wage gap)
+
+There are a few reasons that men and women have different returns for an additional year in age. First one, as mentioned earlier in the report, men, on average, have finish school earlier than women, meaning they can enter the workforce before women. More work experience translates to more promotions and higher pay; hence, the wage gap appears. Another reason may be outright discrimination against older women. Older men may be seen as wiser and taken more seriously while older women appear to be weaker and less efficient workers. These judgements may be reflected in their pay; as a result, there's a wage gap. Another possibility is that as women grow older, the more time they take off of work to become the caregiver. Since they're working less, their change in wages as the grow older is less than the wages of men. The gender wage gap then becomes an issue. 
